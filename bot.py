@@ -155,11 +155,12 @@ def make_search(json_data: str) -> str:
         validated_params = validate_search_params(search_data)
         
         validated_params["destinationIds"] = [mapping.map_destination(destination) for destination in validated_params["destinationNames"]]
-        
+        #map destination groups to destination ids
+
         logger.info(f"Validated Params: {validated_params}")
 
 
-        HotelSearcher.make_search(validated_params)
+        HotelSearcher.searchHotels(validated_params)
 
         
         # Here you can implement your actual search logic using validated_params
