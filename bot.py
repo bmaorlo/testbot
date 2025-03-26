@@ -8,7 +8,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
 import mapping
-import HotelSearcher
+import classes.HotelSearcher as HotelSearcher
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -151,17 +151,13 @@ def make_search(json_data: str) -> str:
         search_data = json.loads(json_data)
         logger.info(f"Received search request with data: {search_data}")
         
-        # Validate and clean the parameters
-        validated_params = validate_search_params(search_data)
-        
-        validated_params["destinationIds"] = [mapping.map_destination(destination) for destination in validated_params["destinationNames"]]
-        #map destination groups to destination ids
+        search_data["destinationIds"] = [mapping.map_destination(destination) for destination in search_data["destination_names"]]
 
         logger.info(f"Validated Params: {validated_params}")
 
 
         HotelSearcher.searchHotels(validated_params)
-
+        
         
         # Here you can implement your actual search logic using validated_params
         # For now, we'll return a mock response
