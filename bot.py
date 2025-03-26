@@ -6,6 +6,7 @@ from typing import Dict, Any
 from fastapi import FastAPI, WebSocket
 from openai import OpenAI
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,21 +28,136 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Store active conversations
 active_conversations: Dict[str, Any] = {}
 
+def validate_search_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate and clean search parameters
+    """
+    validated_params = {}
+    
+    # Validate stars
+    if "stars" in params:
+        stars = params["stars"]
+        if isinstance(stars, list):
+            validated_params["stars"] = [star for star in stars if 1 <= star <= 5]
+    
+    # Validate destination names
+    if "destinationNames" in params:
+        destinations = params["destinationNames"]
+        if isinstance(destinations, list):
+            validated_params["destinationNames"] = destinations
+    
+    # Validate max price
+    if "max_price_per_person" in params:
+        price = params["max_price_per_person"]
+        if isinstance(price, (int, float)) and 0 <= price <= 2000:
+            validated_params["max_price_per_person"] = price
+    
+    # Validate weekend only
+    if "weekendOnly" in params:
+        validated_params["weekendOnly"] = bool(params["weekendOnly"])
+    
+    # Validate vacation type
+    if "vacation_type" in params:
+        vacation_types = params["vacation_type"]
+        if isinstance(vacation_types, list):
+            validated_params["vacation_type"] = vacation_types
+    
+    # Validate room board type
+    if "room_board_type" in params:
+        board_types = params["room_board_type"]
+        if isinstance(board_types, list):
+            validated_params["room_board_type"] = board_types
+    
+    # Validate hotel type and facilities
+    if "hotel_type_and_facilities" in params:
+        facilities = params["hotel_type_and_facilities"]
+        if isinstance(facilities, list):
+            validated_params["hotel_type_and_facilities"] = facilities
+    
+    # Validate travel month
+    if "travelMonth" in params:
+        months = params["travelMonth"]
+        if isinstance(months, list):
+            validated_params["travelMonth"] = [month for month in months if 1 <= month <= 12]
+    
+    # Validate number of nights
+    if "number_of_nights" in params:
+        nights = params["number_of_nights"]
+        if isinstance(nights, list):
+            validated_params["number_of_nights"] = nights
+    
+    # Validate vacation dates
+    if "vacation_specific_dates" in params:
+        dates = params["vacation_specific_dates"]
+        if isinstance(dates, dict) and "start_date" in dates and "end_date" in dates:
+            try:
+                start_date = datetime.strptime(dates["start_date"], "%Y-%m-%d")
+                end_date = datetime.strptime(dates["end_date"], "%Y-%m-%d")
+                if start_date < datetime.now():
+                    raise ValueError("Start date must be in the future")
+                if end_date < start_date:
+                    raise ValueError("End date must be after start date")
+                validated_params["vacation_specific_dates"] = dates
+            except ValueError as e:
+                logger.error(f"Date validation error: {str(e)}")
+    
+    # Validate vacation date range
+    if "vacation_date_range" in params:
+        date_range = params["vacation_date_range"]
+        if isinstance(date_range, dict) and "start_date" in date_range and "end_date" in date_range:
+            try:
+                start_date = datetime.strptime(date_range["start_date"], "%Y-%m-%d")
+                end_date = datetime.strptime(date_range["end_date"], "%Y-%m-%d")
+                if start_date < datetime.now():
+                    raise ValueError("Start date must be in the future")
+                if end_date < start_date:
+                    raise ValueError("End date must be after start date")
+                validated_params["vacation_date_range"] = date_range
+            except ValueError as e:
+                logger.error(f"Date range validation error: {str(e)}")
+    
+    # Validate adults and children capacity
+    if "adults_children_capacity" in params:
+        capacity = params["adults_children_capacity"]
+        if isinstance(capacity, dict):
+            validated_capacity = {}
+            
+            if "number_of_adults" in capacity:
+                validated_capacity["number_of_adults"] = max(0, int(capacity["number_of_adults"]))
+            
+            if "number_of_children" in capacity:
+                validated_capacity["number_of_children"] = max(0, int(capacity["number_of_children"]))
+            
+            if "children_ages" in capacity:
+                ages = capacity["children_ages"]
+                if isinstance(ages, list):
+                    validated_capacity["children_ages"] = [
+                        age for age in ages 
+                        if isinstance(age, (int, float)) and 1 <= age <= 17
+                    ]
+            
+            validated_params["adults_children_capacity"] = validated_capacity
+    
+    return validated_params
+
 def make_search(json_data: str) -> str:
     """
-    Function to handle search requests
+    Function to handle holiday search requests
     """
     try:
         # Parse the JSON data
         search_data = json.loads(json_data)
         logger.info(f"Received search request with data: {search_data}")
         
-        # Here you can implement your search logic
-        # For now, we'll just return a mock response
+        # Validate and clean the parameters
+        validated_params = validate_search_params(search_data)
+        
+        # Here you can implement your actual search logic using validated_params
+        # For now, we'll return a mock response
         return json.dumps({
             "status": "success",
             "message": "Search completed",
-            "data": search_data
+            "data": validated_params
         })
     except json.JSONDecodeError:
         return json.dumps({
@@ -72,25 +188,148 @@ def get_or_create_assistant():
     # Create a new assistant
     logger.info("Creating new assistant")
     assistant = client.beta.assistants.create(
-        name="AI Chat Assistant",
-        instructions="""You are a helpful AI assistant that can help users with their questions and tasks.
-        When a user asks for a search, use the makeSearch function with the appropriate JSON data.
-        The JSON should contain the search parameters in a structured format.""",
+        name="Holiday Search Assistant",
+        instructions="""You are a helpful AI assistant that helps users find their perfect holiday.
+        When a user asks about holiday options, use the makeSearch function with the appropriate parameters.
+        Always try to understand the user's preferences and convert them into structured search parameters.
+        If the user mentions a broad destination (like Europe), include all relevant cities in the destinationNames array.
+        Make sure to validate dates and ensure they are in the future.
+        Format all responses in a user-friendly way.""",
         model="gpt-4-turbo-preview",
         tools=[{
             "type": "function",
             "function": {
                 "name": "makeSearch",
-                "description": "Perform a search operation with the given JSON parameters",
+                "description": "Do a search for holidays based on the user search criteria",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "json": {
-                            "type": "string",
-                            "description": "JSON string containing search parameters"
+                        "stars": {
+                            "type": "array",
+                            "description": "the star rating to apply",
+                            "items": {
+                                "type": "number",
+                                "enum": [1, 2, 3, 4, 5]
+                            }
+                        },
+                        "destinationNames": {
+                            "type": "array",
+                            "description": "The destination it's possible to search vacation at",
+                            "items": {
+                                "type": "string",
+                                "enum": ["Paris", "Faro"]
+                            }
+                        },
+                        "max_price_per_person": {
+                            "type": "number",
+                            "min": 0,
+                            "max": 2000
+                        },
+                        "weekendOnly": {
+                            "type": "boolean",
+                            "description": "if the customer want trips only at weekend"
+                        },
+                        "vacation_type": {
+                            "type": "array",
+                            "description": "The theme of the vacation the customer is looking for",
+                            "items": {
+                                "type": "string",
+                                "enum": ["Casino Trip", "Instagram Places"]
+                            }
+                        },
+                        "room_board_type": {
+                            "type": "array",
+                            "description": "The room board type",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "room only",
+                                    "with breakfast",
+                                    "breakfast and dinner",
+                                    "breakfast lunch and dinner",
+                                    "all inclusive"
+                                ]
+                            }
+                        },
+                        "hotel_type_and_facilities": {
+                            "type": "array",
+                            "description": "The type of hotel and the facilities that the hotel have in it",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "Parking",
+                                    "Close to beach",
+                                    "All inclusive hotel",
+                                    "hotel have Water park"
+                                ]
+                            }
+                        },
+                        "travelMonth": {
+                            "type": "array",
+                            "description": "the number that represent the month of his travel plans",
+                            "items": {
+                                "type": "number"
+                            }
+                        },
+                        "number_of_nights": {
+                            "type": "array",
+                            "description": "The number of nights the customer want to travel",
+                            "items": {
+                                "type": "number"
+                            }
+                        },
+                        "vacation_specific_dates": {
+                            "type": "object",
+                            "description": "The starting date and end date of the range of dates the customer is willing to travel",
+                            "properties": {
+                                "start_date": {
+                                    "type": "string",
+                                    "format": "date"
+                                },
+                                "end_date": {
+                                    "type": "string",
+                                    "format": "date"
+                                }
+                            }
+                        },
+                        "vacation_date_range": {
+                            "type": "object",
+                            "description": "The starting date and end date of the range of dates the customer is willing to travel",
+                            "properties": {
+                                "start_date": {
+                                    "type": "string",
+                                    "format": "date"
+                                },
+                                "end_date": {
+                                    "type": "string",
+                                    "format": "date"
+                                }
+                            }
+                        },
+                        "adults_children_capacity": {
+                            "type": "object",
+                            "description": "how much and who are the people that is traveling",
+                            "properties": {
+                                "number_of_adults": {
+                                    "type": "number",
+                                    "description": "the number of adults that is going to the vacation"
+                                },
+                                "number_of_children": {
+                                    "type": "number",
+                                    "description": "the number of children that is going to the vacation"
+                                },
+                                "children_ages": {
+                                    "type": "array",
+                                    "description": "The ages of the children, can be from age 1 to 17",
+                                    "items": {
+                                        "type": "number",
+                                        "min": 1,
+                                        "max": 17
+                                    }
+                                }
+                            }
                         }
-                    },
-                    "required": ["json"]
+                    }
                 }
             }
         }]
@@ -161,10 +400,9 @@ async def process_message_with_assistant(message: str, conversation_id: str) -> 
                     if tool_call.function.name == "makeSearch":
                         # Get the JSON parameter
                         args = json.loads(tool_call.function.arguments)
-                        json_data = args.get("json", "{}")
                         
                         # Call the function
-                        result = make_search(json_data)
+                        result = make_search(json.dumps(args))
                         
                         # Submit the result back to the assistant
                         client.beta.threads.runs.submit_tool_outputs(
