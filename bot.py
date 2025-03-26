@@ -7,6 +7,8 @@ from fastapi import FastAPI, WebSocket
 from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
+import mapping
+import HotelSearcher
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -151,6 +153,14 @@ def make_search(json_data: str) -> str:
         
         # Validate and clean the parameters
         validated_params = validate_search_params(search_data)
+        
+        validated_params["destinationIds"] = [mapping.map_destination(destination) for destination in validated_params["destinationNames"]]
+        
+        logger.info(f"Validated Params: {validated_params}")
+
+
+        HotelSearcher.make_search(validated_params)
+
         
         # Here you can implement your actual search logic using validated_params
         # For now, we'll return a mock response
