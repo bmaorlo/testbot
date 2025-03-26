@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import mapping
 import classes.HotelSearcher as HotelSearcher
+import classes.OfferLoader as OfferLoader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -153,18 +154,24 @@ def make_search(json_data: str) -> str:
         
         search_data["destinationIds"] = [mapping.map_destination(destination) for destination in search_data["destination_names"]]
 
-        logger.info(f"Validated Params: {validated_params}")
+        logger.info(f"Finished Mapping")
 
+        logger.info(f"Start to search for hotels")
+        hotels = HotelSearcher.searchHotels(search_data)
+        logger.info(f"Finished searching for hotels")
 
-        HotelSearcher.searchHotels(validated_params)
+        logger.info(f"Start to load offers")
+        offers = OfferLoader.load_offers()
+        logger.info(f"Finished loading offers")
         
         
+
         # Here you can implement your actual search logic using validated_params
         # For now, we'll return a mock response
         return json.dumps({
             "status": "success",
-            "message": "Search completed",
-            "data": validated_params
+            "message": "Search completed here is the link to the offers https://agent.holidayheroes.com/holidayfinder/proposal/view/75",
+            "data": search_data
         })
     except json.JSONDecodeError:
         return json.dumps({
