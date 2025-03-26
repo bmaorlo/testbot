@@ -152,10 +152,27 @@ def make_search(json_data: str) -> str:
         # Parse the JSON data
         search_data = json.loads(json_data)
         logger.info(f"Received search request with data: {search_data}")
-        
-        search_data["destinationIds"] = [mapping.map_destination(destination) for destination in search_data["destination_names"]]
+        if "destination_names" in search_data:
+            search_data["destinationIds"] = [mapping.map_destination(destination) for destination in search_data["destination_names"]]
+        if "destination_names" in search_data:
+            search_data["destinationIds"] = [mapping.map_destination(destination) for destination in
+                                             search_data["destination_names"]]
 
-        logger.info(f"Finished Mapping")
+        if "destination_group_names" in search_data:
+            mapped_ids = list(chain.from_iterable(
+                destination_group_mapping.get_group_destinations_ids(group_name)
+                for group_name in search_data["destination_group_names"]
+            ))
+
+            if "destinationIds" not in search_data:
+                search_data["destinationIds"] = []
+            search_data["destinationIds"].extend(mapped_ids)
+            search_data["destinationIds"] = [d for d in search_data["destinationIds"] if d is not None]
+
+        logger.info("Finished Mapping")
+        logger.info("#############")
+        logger.info(f"Destinations ids: {search_data["destinationIds"]}")
+        logger.info("########")
 
         logger.info(f"Start to search for hotels")
         hotels = HotelSearcher.searchHotels(search_data)
