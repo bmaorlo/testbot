@@ -8,8 +8,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
 import mapping
+import destination_group_mapping
+import destination_theme_mapping
 import classes.HotelSearcher as HotelSearcher
 import classes.OfferLoader as OfferLoader
+from itertools import chain
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -154,9 +158,13 @@ def make_search(json_data: str) -> str:
         logger.info(f"Received search request with data: {search_data}")
         if "destination_names" in search_data:
             search_data["destinationIds"] = [mapping.map_destination(destination) for destination in search_data["destination_names"]]
-        if "destination_names" in search_data:
-            search_data["destinationIds"] = [mapping.map_destination(destination) for destination in
-                                             search_data["destination_names"]]
+        if "destination_theme_names" in search_data:
+            mapped_ids = destination_theme_mapping.get_destination_ids_by_themes(search_data["destination_theme_names"])
+
+            if "destinationIds" not in search_data:
+                search_data["destinationIds"] = []
+            search_data["destinationIds"].extend(mapped_ids)
+
 
         if "destination_group_names" in search_data:
             mapped_ids = list(chain.from_iterable(
@@ -167,7 +175,9 @@ def make_search(json_data: str) -> str:
             if "destinationIds" not in search_data:
                 search_data["destinationIds"] = []
             search_data["destinationIds"].extend(mapped_ids)
-            search_data["destinationIds"] = [d for d in search_data["destinationIds"] if d is not None]
+
+
+        search_data["destinationIds"] = [d for d in search_data["destinationIds"] if d is not None]
 
         logger.info("Finished Mapping")
         logger.info("#############")
