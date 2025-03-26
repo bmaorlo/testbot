@@ -10,6 +10,7 @@ from datetime import datetime
 import mapping
 import destination_group_mapping
 import destination_theme_mapping
+import hotel_facilities_mapping
 import classes.HotelSearcher as HotelSearcher
 import classes.OfferLoader as OfferLoader
 from itertools import chain
@@ -164,6 +165,13 @@ def make_search(json_data: str) -> str:
             if "destinationIds" not in search_data:
                 search_data["destinationIds"] = []
             search_data["destinationIds"].extend(mapped_ids)
+
+        if "hotel_facilities" in search_data:
+            mapped_ids = hotel_facilities_mapping.get_facilites_ids(search_data["hotel_facilities"])
+
+            if "amenities" not in search_data:
+                search_data["amenities"] = []
+            search_data["amenities"].extend(mapped_ids)
 
 
         if "destination_group_names" in search_data:
